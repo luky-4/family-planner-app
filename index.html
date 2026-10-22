@@ -86,8 +86,8 @@ label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3
 #toast.err { background: var(--bad); color: #fff; }
 .vuoto { text-align: center; padding: 40px 16px; color: var(--muted); }
 .giorno { font-weight: 600; margin: 16px 0 6px; }
-.filtri { display: grid; grid-template-columns: 1fr 150px 170px; gap: 8px; margin-bottom: 12px; }
-@media (max-width: 520px) { .filtri { grid-template-columns: 1fr 1fr; } .filtri .cerca { grid-column: 1 / -1; } }
+.filtri { display: grid; grid-template-columns: 1fr 140px 160px 140px; gap: 8px; margin-bottom: 12px; }
+@media (max-width: 640px) { .filtri { grid-template-columns: 1fr 1fr; } .filtri .cerca { grid-column: 1 / -1; } }
 </style>
 </head>
 <body>
@@ -104,7 +104,7 @@ const CHIAVE = "fp_sessione";
 const SEZIONI = [["ricette", "Ricette"], ["famiglia", "Famiglia"], ["freezer", "Freezer"], ["menu", "Menù"], ["impostazioni", "Impostazioni"]];
 const STATI = ["approvata", "bozza", "scartata"];
 const CATEGORIE = ["carne_bianca", "carne_rossa", "pesce", "legumi", "uova", "formaggio", "pizza", "vegetale"];
-const TIPI = ["piatto_unico", "proteina", "contorno", "base", "zuppa"];
+const TIPI = ["piatto_unico", "base", "proteina", "contorno", "zuppa", "dessert"];
 const PASTI = ["entrambi", "cena", "pranzo"];
 const METODI = ["forno", "fornelli", "griglia", "vapore", "crudo"];
 const RUOLI = ["genitore", "figlio", "tata"];
@@ -113,7 +113,8 @@ const GIORNI = ["", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì",
 
 let D = null;          // dati dal server
 let sezione = "ricette";
-const filtro = { testo: "", stato: "", categoria: "" };
+const filtro = { testo: "", stato: "", categoria: "", tipo: "" };
+const NOMI_TIPO = { piatto_unico: "piatto unico", base: "primo / base", proteina: "secondo", contorno: "contorno", zuppa: "zuppa", dessert: "dessert" };
 
 // ---------- utilità ----------
 const $ = (s, el = document) => el.querySelector(s);
@@ -199,6 +200,7 @@ function renderRicette() {
   const t = filtro.testo.toLowerCase();
   const lista = D.ricette.filter((r) =>
     (!filtro.stato || r.stato === filtro.stato) && (!filtro.categoria || r.categoria === filtro.categoria) &&
+    (!filtro.tipo || r.tipo === filtro.tipo) &&
     (!t || r.nome.toLowerCase().includes(t) || r.ricetta_ingredienti.some((i) => i.ingrediente.includes(t))));
   const conta = (s) => D.ricette.filter((r) => r.stato === s).length;
   $("#stato").textContent = `${conta("approvata")} approvate · ${conta("bozza")} bozze`;
@@ -207,6 +209,7 @@ function renderRicette() {
       <input class="cerca" id="f-testo" placeholder="Cerca nome o ingrediente…" value="${esc(filtro.testo)}">
       <select id="f-stato"><option value="">Tutti gli stati</option>${opzioni(STATI, filtro.stato)}</select>
       <select id="f-cat"><option value="">Tutte le categorie</option>${opzioni(CATEGORIE, filtro.categoria)}</select>
+      <select id="f-tipo"><option value="">Tutti i tipi</option>${opzioni(TIPI, filtro.tipo, NOMI_TIPO)}</select>
     </div>
     <div class="row" style="justify-content:space-between;margin-bottom:10px">
       <span class="muted small">${lista.length} ricette</span>
@@ -215,7 +218,7 @@ function renderRicette() {
     ${lista.map((r) => `
       <div class="card ricetta" data-id="${r.id}">
         <div class="nome">${esc(r.nome)}</div>
-        <span class="chip ${r.stato}">${r.stato}</span><span class="chip">${esc(r.categoria.replace("_", " "))}</span>
+        <span class="chip ${r.stato}">${r.stato}</span><span class="chip">${esc(NOMI_TIPO[r.tipo] ?? r.tipo)}</span><span class="chip">${esc(r.categoria.replace("_", " "))}</span>
         ${r.cottura_lunga ? '<span class="chip">⏱ lunga</span>' : ""}
         ${r.preparabile_giorno_prima ? '<span class="chip">📦 giorno prima</span>' : ""}
         ${r.contorno_da_proporre ? '<span class="chip">🥦 contorno proposto</span>' : ""}
@@ -230,6 +233,7 @@ function renderRicette() {
   $("#f-testo").oninput = (e) => { filtro.testo = e.target.value; const pos = e.target.selectionStart; renderRicette(); const i = $("#f-testo"); i.focus(); i.setSelectionRange(pos, pos); };
   $("#f-stato").onchange = (e) => { filtro.stato = e.target.value; renderRicette(); };
   $("#f-cat").onchange = (e) => { filtro.categoria = e.target.value; renderRicette(); };
+  $("#f-tipo").onchange = (e) => { filtro.tipo = e.target.value; renderRicette(); };
   $("#nuova").onclick = () => apriRicetta(null);
   for (const c of document.querySelectorAll(".ricetta")) {
     c.onclick = async (e) => {
@@ -272,7 +276,7 @@ function apriRicetta(r) {
       <div class="wide"><label class="f">Nome</label><textarea data-f="nome" rows="2">${esc(r.nome)}</textarea></div>
       <div><label class="f">Stato</label><select data-f="stato">${opzioni(STATI, r.stato)}</select></div>
       <div><label class="f">Categoria (proteina)</label><select data-f="categoria">${opzioni(CATEGORIE, r.categoria)}</select></div>
-      <div><label class="f">Tipo</label><select data-f="tipo">${opzioni(TIPI, r.tipo)}</select></div>
+      <div><label class="f">Tipo</label><select data-f="tipo">${opzioni(TIPI, r.tipo, NOMI_TIPO)}</select></div>
       <div><label class="f">Pasto</label><select data-f="pasto">${opzioni(PASTI, r.pasto)}</select></div>
       <div><label class="f">Minuti preparazione</label><input data-f="minuti_prep" inputmode="numeric" value="${esc(r.minuti_prep)}"></div>
       <div><label class="f">Minuti cottura</label><input data-f="minuti_cottura" inputmode="numeric" value="${esc(r.minuti_cottura)}"></div>
@@ -281,7 +285,7 @@ function apriRicetta(r) {
       <div class="wide row" style="gap:18px">
         ${siNo("cottura_lunga", r.cottura_lunga, "Cottura lunga (solo smart/weekend)")}
         ${siNo("preparabile_giorno_prima", r.preparabile_giorno_prima, "Si prepara il giorno prima")}
-        ${siNo("contorno_da_proporre", r.contorno_da_proporre, "Contorno generico: proponi una verdura")}
+        ${siNo("contorno_da_proporre", r.contorno_da_proporre, "Piatto unico: aggiungi un contorno")}
       </div>
       <div class="wide"><label class="f">Variante Lorenzo (quando c'è pesce)</label><input data-f="variante_lorenzo" value="${esc(r.variante_lorenzo)}"></div>
       <div class="wide"><label class="f">Note famiglia (Leonardo, formaggi…)</label><textarea data-f="note_famiglia">${esc(r.note_famiglia)}</textarea></div>
@@ -477,18 +481,23 @@ function renderFreezer() {
 function renderMenu() {
   $("#stato").textContent = "";
   if (!D.menu.length) { $("#app").innerHTML = '<div class="vuoto">Nessun menù pianificato.<br>Su Telegram: /pianifica</div>'; return; }
+  const pasti = new Map();
+  for (const m of D.menu) { const k = `${m.data}|${m.pasto}`; pasti.set(k, [...(pasti.get(k) || []), m]); }
   let giorno = "";
-  $("#app").innerHTML = D.menu.map((m) => {
-    const testa = m.data !== giorno ? `<div class="giorno">${new Date(m.data + "T12:00:00").toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</div>` : "";
-    giorno = m.data;
-    return `${testa}<div class="card ricetta" data-id="${m.ricette?.id}">
-      <div class="small muted">${m.pasto === "pranzo" ? "Pranzo" : "Cena"} · ${esc(m.ricette?.categoria?.replace("_", " "))}</div>
-      <div class="nome">${esc(m.ricette?.nome)}</div>
-      ${m.contorno ? `<div class="small">🥦 ${esc(m.contorno)}</div>` : ""}
-      ${m.note_prep ? `<div class="small muted">👉 ${esc(m.note_prep)}</div>` : ""}
+  $("#app").innerHTML = [...pasti].map(([k, comp]) => {
+    const [data, pasto] = k.split("|");
+    const testa = data !== giorno ? `<div class="giorno">${new Date(data + "T12:00:00").toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</div>` : "";
+    giorno = data;
+    const contorno = comp.find((m) => m.contorno)?.contorno;
+    const note = comp.find((m) => m.note_prep)?.note_prep;
+    return `${testa}<div class="card">
+      <div class="small muted">${pasto === "pranzo" ? "Pranzo" : "Cena"}</div>
+      ${comp.map((m) => `<div class="nome ricetta" data-id="${m.ricette?.id}">${esc(m.ricette?.nome)} <span class="chip">${esc(NOMI_TIPO[m.ruolo] ?? m.ricette?.categoria ?? "")}</span></div>`).join("")}
+      ${contorno ? `<div class="small">🥦 ${esc(contorno)}</div>` : ""}
+      ${note ? `<div class="small muted" style="margin-top:4px">👉 ${esc(note).replaceAll(" · ", "<br>👉 ")}</div>` : ""}
     </div>`;
   }).join("");
-  for (const c of document.querySelectorAll(".ricetta")) c.onclick = () => apriRicetta(D.ricette.find((r) => r.id === Number(c.dataset.id)));
+  for (const c of document.querySelectorAll(".ricetta[data-id]")) c.onclick = () => apriRicetta(D.ricette.find((r) => r.id === Number(c.dataset.id)));
 }
 
 // ---------- impostazioni ----------
