@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Family Planner</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏡</text></svg>">
+<style>
+:root {
+  --bg: #f6f5f1; --card: #ffffff; --ink: #1f2421; --muted: #6b726d; --line: #e4e2db;
+  --accent: #2f5d50; --accent-ink: #ffffff; --soft: #e8efe9;
+  --ok: #2e7d4f; --ok-soft: #e3f2e8; --warn: #9a6a00; --warn-soft: #fbf1d9; --bad: #b3261e; --bad-soft: #fbe5e3;
+  --radius: 12px; --shadow: 0 1px 2px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141715; --card: #1d211f; --ink: #e9ece9; --muted: #9aa39d; --line: #2e3430;
+    --accent: #7fb8a4; --accent-ink: #0f1311; --soft: #23302b;
+    --ok: #7fcf9c; --ok-soft: #1e3326; --warn: #e6c068; --warn-soft: #362d17; --bad: #f08f86; --bad-soft: #3a1f1d;
+    --shadow: none; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); }
+body { font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
+header { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); padding: env(safe-area-inset-top) 0 0; }
+.top { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 4px; max-width: 900px; margin: 0 auto; }
+.top h1 { font-size: 18px; margin: 0; }
+nav { display: flex; gap: 4px; overflow-x: auto; padding: 6px 16px 10px; max-width: 900px; margin: 0 auto; scrollbar-width: none; }
+nav button { border: 0; background: transparent; padding: 7px 12px; border-radius: 999px; color: var(--muted); white-space: nowrap; cursor: pointer; }
+nav button.on { background: var(--accent); color: var(--accent-ink); }
+main { max-width: 900px; margin: 0 auto; padding: 14px 16px 90px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; margin-bottom: 10px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.grow { flex: 1 1 160px; min-width: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+h2 { font-size: 16px; margin: 18px 0 8px; }
+h3 { font-size: 15px; margin: 0 0 6px; }
+input, select, textarea { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-height: 38px; }
+textarea { min-height: 64px; resize: vertical; }
+input[type=checkbox] { width: 18px; min-height: 18px; accent-color: var(--accent); }
+label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.grid .wide { grid-column: 1 / -1; }
+.btn { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 8px 12px; cursor: pointer; min-height: 38px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.icon { padding: 6px 10px; }
+.chip { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--soft); color: var(--ink); margin: 2px 4px 2px 0; }
+.chip.approvata { background: var(--ok-soft); color: var(--ok); }
+.chip.bozza { background: var(--warn-soft); color: var(--warn); }
+.chip.scartata { background: var(--bad-soft); color: var(--bad); }
+.ricetta { cursor: pointer; }
+.ricetta .nome { font-weight: 600; margin-bottom: 4px; }
+.azioni { display: flex; gap: 6px; margin-top: 8px; }
+.lista-righe .riga { display: grid; gap: 6px; align-items: center; padding: 6px 0; border-top: 1px dashed var(--line); }
+.lista-righe .riga:first-child { border-top: 0; }
+.r-ingr { grid-template-columns: 1fr 70px 70px 36px; }
+.r-prep { grid-template-columns: 1fr 105px 62px 62px 62px 36px; }
+.r-pref { grid-template-columns: 120px 1fr 1fr 36px; }
+.r-rout { grid-template-columns: 105px 100px 1fr 90px 90px 28px 36px; }
+@media (max-width: 640px) {
+  .r-prep { grid-template-columns: 1fr 1fr 1fr; }
+  .r-prep .nome-p { grid-column: 1 / -1; }
+  .r-pref { grid-template-columns: 1fr 1fr 36px; }
+  .r-pref .note-p { grid-column: 1 / 3; }
+  .r-rout { grid-template-columns: 1fr 1fr 36px; }
+  .r-rout > :nth-child(1) { order: 1; } .r-rout > :nth-child(2) { order: 2; } .r-rout > :last-child { order: 3; }
+  .r-rout .desc { grid-column: 1 / -1; order: 4; }
+  .r-rout > :nth-child(4) { order: 5; } .r-rout > :nth-child(5) { order: 6; }
+  .r-rout .att { order: 7; justify-self: center; }
+  .lista-righe .intest { display: none; }
+}
+.intest { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.sheet { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 20; display: flex; justify-content: center; align-items: flex-end; }
+.sheet .pannello { background: var(--bg); width: 100%; max-width: 900px; max-height: 94vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 16px 16px calc(80px + env(safe-area-inset-bottom)); }
+@media (min-width: 700px) { .sheet { align-items: center; } .sheet .pannello { border-radius: 16px; max-height: 90vh; padding-bottom: 16px; } }
+.barra { position: sticky; bottom: -16px; background: var(--bg); padding: 12px 0 4px; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--line); margin-top: 16px; }
+#toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 30; max-width: calc(100% - 32px); }
+#toast.on { opacity: 1; }
+#toast.err { background: var(--bad); color: #fff; }
+.vuoto { text-align: center; padding: 40px 16px; color: var(--muted); }
+.giorno { font-weight: 600; margin: 16px 0 6px; }
+.filtri { display: grid; grid-template-columns: 1fr 150px 170px; gap: 8px; margin-bottom: 12px; }
+@media (max-width: 520px) { .filtri { grid-template-columns: 1fr 1fr; } .filtri .cerca { grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="top"><h1>🏡 Family Planner</h1><span id="stato" class="muted small"></span></div>
+  <nav id="nav"></nav>
+</header>
+<main id="app"><div class="vuoto">Caricamento…</div></main>
+<div id="toast"></div>
+
+<script>
+const API = "https://ytjweidetxjqgcxdazou.supabase.co/functions/v1/dashboard";
+const CHIAVE = "fp_sessione";
+const SEZIONI = [["ricette", "Ricette"], ["famiglia", "Famiglia"], ["freezer", "Freezer"], ["menu", "Menù"], ["impostazioni", "Impostazioni"]];
+const STATI = ["approvata", "bozza", "scartata"];
+const CATEGORIE = ["carne_bianca", "carne_rossa", "pesce", "legumi", "uova", "formaggio", "pizza", "vegetale"];
+const TIPI = ["piatto_unico", "proteina", "contorno", "base", "zuppa"];
+const PASTI = ["entrambi", "cena", "pranzo"];
+const METODI = ["forno", "fornelli", "griglia", "vapore", "crudo"];
+const RUOLI = ["genitore", "figlio", "tata"];
+const TIPI_PREF = ["escluso", "non_gradito", "gradito"];
+const GIORNI = ["", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
+
+let D = null;          // dati dal server
+let sezione = "ricette";
+const filtro = { testo: "", stato: "", categoria: "" };
+
+// ---------- utilità ----------
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const opzioni = (lista, sel, etichette = {}) => lista.map((v) => `<option value="${esc(v)}" ${v == sel ? "selected" : ""}>${esc(etichette[v] ?? v.replace("_", " "))}</option>`).join("");
+// Se il browser blocca localStorage la sessione vive solo finché la pagina resta aperta
+const sessione = () => { try { return localStorage.getItem(CHIAVE) || window.__sessione || null; } catch { return window.__sessione || null; } };
+
+function toast(testo, errore = false) {
+  const t = $("#toast");
+  t.textContent = testo;
+  t.className = "on" + (errore ? " err" : "");
+  clearTimeout(t._t);
+  t._t = setTimeout(() => (t.className = ""), errore ? 4000 : 1600);
+}
+
+async function api(azione, corpo = {}) {
+  const r = await fetch(API, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(sessione() ? { authorization: `Bearer ${sessione()}` } : {}) },
+    body: JSON.stringify({ azione, ...corpo }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && azione !== "accedi") { mostraLogin(j.errore); throw new Error(j.errore); }
+  if (!r.ok) throw new Error(j.errore || `Errore ${r.status}`);
+  return j;
+}
+
+async function salva(azione, corpo, msg = "Salvato ✓") {
+  try {
+    const r = await api(azione, corpo);
+    toast(msg);
+    return r;
+  } catch (e) {
+    toast(e.message, true);
+    throw e;
+  }
+}
+
+async function ricarica() {
+  D = await api("dati");
+  render();
+}
+
+// ---------- accesso ----------
+function mostraLogin(msg) {
+  window.__sessione = null;
+  try { localStorage.removeItem(CHIAVE); } catch {}
+  $("#nav").innerHTML = "";
+  $("#app").innerHTML = `<div class="card vuoto">
+    <p style="font-size:40px;margin:0">🔐</p>
+    <p><strong>${esc(msg || "Accesso richiesto")}</strong></p>
+    <p class="muted">Nel gruppo Telegram scrivi <strong>/dashboard</strong> e apri il link che ti manda il bot.</p></div>`;
+}
+
+async function avvio() {
+  const m = location.hash.match(/t=([0-9a-f]{64})/);
+  if (m) {
+    history.replaceState(null, "", location.pathname); // il codice sparisce dalla barra degli indirizzi
+    try {
+      const { sessione: s } = await api("accedi", { otp: m[1] });
+      window.__sessione = s;
+      try { localStorage.setItem(CHIAVE, s); } catch {}
+    } catch (e) { return mostraLogin(e.message); }
+  }
+  if (!sessione()) return mostraLogin();
+  try { await ricarica(); } catch (e) { if (sessione()) $("#app").innerHTML = `<div class="card vuoto">${esc(e.message)}</div>`; }
+}
+
+// ---------- render ----------
+function render() {
+  $("#nav").innerHTML = SEZIONI.map(([k, t]) => `<button data-sez="${k}" class="${k === sezione ? "on" : ""}">${t}</button>`).join("");
+  ({ ricette: renderRicette, famiglia: renderFamiglia, freezer: renderFreezer, menu: renderMenu, impostazioni: renderImpostazioni })[sezione]();
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-sez]");
+  if (b) { sezione = b.dataset.sez; render(); scrollTo(0, 0); }
+});
+
+// ---------- ricette ----------
+function renderRicette() {
+  const t = filtro.testo.toLowerCase();
+  const lista = D.ricette.filter((r) =>
+    (!filtro.stato || r.stato === filtro.stato) && (!filtro.categoria || r.categoria === filtro.categoria) &&
+    (!t || r.nome.toLowerCase().includes(t) || r.ricetta_ingredienti.some((i) => i.ingrediente.includes(t))));
+  const conta = (s) => D.ricette.filter((r) => r.stato === s).length;
+  $("#stato").textContent = `${conta("approvata")} approvate · ${conta("bozza")} bozze`;
+  $("#app").innerHTML = `
+    <div class="filtri">
+      <input class="cerca" id="f-testo" placeholder="Cerca nome o ingrediente…" value="${esc(filtro.testo)}">
+      <select id="f-stato"><option value="">Tutti gli stati</option>${opzioni(STATI, filtro.stato)}</select>
+      <select id="f-cat"><option value="">Tutte le categorie</option>${opzioni(CATEGORIE, filtro.categoria)}</select>
+    </div>
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <span class="muted small">${lista.length} ricette</span>
+      <button class="btn primary" id="nuova">+ Nuova ricetta</button>
+    </div>
+    ${lista.map((r) => `
+      <div class="card ricetta" data-id="${r.id}">
+        <div class="nome">${esc(r.nome)}</div>
+        <span class="chip ${r.stato}">${r.stato}</span><span class="chip">${esc(r.categoria.replace("_", " "))}</span>
+        ${r.cottura_lunga ? '<span class="chip">⏱ lunga</span>' : ""}
+        ${r.preparabile_giorno_prima ? '<span class="chip">📦 giorno prima</span>' : ""}
+        ${r.contorno_da_proporre ? '<span class="chip">🥦 contorno proposto</span>' : ""}
+        ${r.max_volte_30gg != null ? `<span class="chip">🔁 max ${r.max_volte_30gg}/30gg</span>` : ""}
+        ${(r.preparazioni || []).some((p) => p.metodo === "forno") ? '<span class="chip">🔥 forno</span>' : ""}
+        <div class="azioni">
+          ${r.stato !== "approvata" ? `<button class="btn icon" data-stato="approvata">✓ Approva</button>` : ""}
+          ${r.stato !== "scartata" ? `<button class="btn icon ghost" data-stato="scartata">Scarta</button>` : `<button class="btn icon ghost" data-stato="bozza">Ripristina</button>`}
+        </div>
+      </div>`).join("") || '<div class="vuoto">Nessuna ricetta con questi filtri.</div>'}`;
+
+  $("#f-testo").oninput = (e) => { filtro.testo = e.target.value; const pos = e.target.selectionStart; renderRicette(); const i = $("#f-testo"); i.focus(); i.setSelectionRange(pos, pos); };
+  $("#f-stato").onchange = (e) => { filtro.stato = e.target.value; renderRicette(); };
+  $("#f-cat").onchange = (e) => { filtro.categoria = e.target.value; renderRicette(); };
+  $("#nuova").onclick = () => apriRicetta(null);
+  for (const c of document.querySelectorAll(".ricetta")) {
+    c.onclick = async (e) => {
+      const id = Number(c.dataset.id);
+      const b = e.target.closest("[data-stato]");
+      if (!b) return apriRicetta(D.ricette.find((r) => r.id === id));
+      e.stopPropagation();
+      await salva("stato_ricetta", { id, stato: b.dataset.stato });
+      D.ricette.find((r) => r.id === id).stato = b.dataset.stato;
+      renderRicette();
+    };
+  }
+}
+
+function rigaIngr(i = {}) {
+  return `<div class="riga r-ingr">
+    <input data-k="ingrediente" value="${esc(i.ingrediente)}" placeholder="ingrediente">
+    <input data-k="quantita" value="${esc(i.quantita)}" inputmode="decimal" placeholder="q.tà">
+    <input data-k="unita" value="${esc(i.unita)}" placeholder="g, pz…" list="unita">
+    <button class="btn icon ghost" data-togli title="Togli">✕</button></div>`;
+}
+function rigaPrep(p = {}) {
+  return `<div class="riga r-prep">
+    <input class="nome-p" data-k="nome" value="${esc(p.nome)}" placeholder="preparazione (es. lasagne)">
+    <select data-k="metodo">${opzioni(METODI, p.metodo || "fornelli")}</select>
+    <input data-k="temp" value="${esc(p.temp)}" inputmode="numeric" placeholder="°C">
+    <input data-k="minuti" value="${esc(p.minuti)}" inputmode="numeric" placeholder="min">
+    <input data-k="anticipabile" value="${esc(p.anticipabile)}" inputmode="numeric" placeholder="+gg" title="Giorni prima in cui si può preparare">
+    <button class="btn icon ghost" data-togli title="Togli">✕</button></div>`;
+}
+const siNo = (k, v, testo) => `<label class="row small"><input type="checkbox" data-f="${k}" ${v ? "checked" : ""}> ${testo}</label>`;
+
+function apriRicetta(r) {
+  r = r || { stato: "bozza", categoria: "legumi", tipo: "piatto_unico", pasto: "entrambi", preparazioni: [], ricetta_ingredienti: [], attrezzatura: [], riutilizzabile_in: [], fonte: "Lorenzo" };
+  const s = document.createElement("div");
+  s.className = "sheet";
+  s.innerHTML = `<div class="pannello">
+    <h3>${r.id ? `Ricetta #${r.id}` : "Nuova ricetta"}</h3>
+    <div class="grid">
+      <div class="wide"><label class="f">Nome</label><textarea data-f="nome" rows="2">${esc(r.nome)}</textarea></div>
+      <div><label class="f">Stato</label><select data-f="stato">${opzioni(STATI, r.stato)}</select></div>
+      <div><label class="f">Categoria (proteina)</label><select data-f="categoria">${opzioni(CATEGORIE, r.categoria)}</select></div>
+      <div><label class="f">Tipo</label><select data-f="tipo">${opzioni(TIPI, r.tipo)}</select></div>
+      <div><label class="f">Pasto</label><select data-f="pasto">${opzioni(PASTI, r.pasto)}</select></div>
+      <div><label class="f">Minuti preparazione</label><input data-f="minuti_prep" inputmode="numeric" value="${esc(r.minuti_prep)}"></div>
+      <div><label class="f">Minuti cottura</label><input data-f="minuti_cottura" inputmode="numeric" value="${esc(r.minuti_cottura)}"></div>
+      <div><label class="f">Max volte in 30 giorni</label><input data-f="max_volte_30gg" inputmode="numeric" placeholder="nessun limite" value="${esc(r.max_volte_30gg)}"></div>
+      <div><label class="f">Attrezzatura</label><input data-f="attrezzatura" placeholder="forno, fornelli" value="${esc((r.attrezzatura || []).join(", "))}"></div>
+      <div class="wide row" style="gap:18px">
+        ${siNo("cottura_lunga", r.cottura_lunga, "Cottura lunga (solo smart/weekend)")}
+        ${siNo("preparabile_giorno_prima", r.preparabile_giorno_prima, "Si prepara il giorno prima")}
+        ${siNo("contorno_da_proporre", r.contorno_da_proporre, "Contorno generico: proponi una verdura")}
+      </div>
+      <div class="wide"><label class="f">Variante Lorenzo (quando c'è pesce)</label><input data-f="variante_lorenzo" value="${esc(r.variante_lorenzo)}"></div>
+      <div class="wide"><label class="f">Note famiglia (Leonardo, formaggi…)</label><textarea data-f="note_famiglia">${esc(r.note_famiglia)}</textarea></div>
+      <div class="wide"><label class="f">Da preparare doppio per il giorno dopo (separati da virgola)</label><input data-f="riutilizzabile_in" value="${esc((r.riutilizzabile_in || []).join(", "))}"></div>
+    </div>
+    <h2>Ingredienti <span class="muted small">(per tutta la famiglia)</span></h2>
+    <div class="card lista-righe" id="ingr">${r.ricetta_ingredienti.map(rigaIngr).join("")}</div>
+    <button class="btn" id="add-ingr">+ Ingrediente</button>
+    <h2>Preparazioni <span class="muted small">(servono per sfruttare il forno tra un giorno e l'altro)</span></h2>
+    <div class="card lista-righe" id="prep">${(r.preparazioni || []).map(rigaPrep).join("")}</div>
+    <button class="btn" id="add-prep">+ Preparazione</button>
+    <div class="grid" style="margin-top:14px">
+      <div><label class="f">Fonte</label><input data-f="fonte" value="${esc(r.fonte)}"></div>
+      <div class="wide"><label class="f">Note</label><input data-f="note" value="${esc(r.note)}"></div>
+    </div>
+    <datalist id="unita"><option>g</option><option>kg</option><option>ml</option><option>l</option><option>pz</option><option>mazzo</option><option>coste</option><option>vasetti</option></datalist>
+    <div class="barra"><button class="btn ghost" id="annulla">Annulla</button><button class="btn primary" id="salva">Salva</button></div>
+  </div>`;
+  document.body.appendChild(s);
+  document.body.style.overflow = "hidden";
+  const chiudi = () => { s.remove(); document.body.style.overflow = ""; };
+  s.onclick = (e) => {
+    if (e.target === s) chiudi();
+    const t = e.target.closest("[data-togli]");
+    if (t) t.parentElement.remove();
+  };
+  $("#annulla", s).onclick = chiudi;
+  $("#add-ingr", s).onclick = () => { $("#ingr", s).insertAdjacentHTML("beforeend", rigaIngr()); $("#ingr .riga:last-child input", s).focus(); };
+  $("#add-prep", s).onclick = () => { $("#prep", s).insertAdjacentHTML("beforeend", rigaPrep()); $("#prep .riga:last-child input", s).focus(); };
+  $("#salva", s).onclick = async () => {
+    const f = (k) => $(`[data-f="${k}"]`, s);
+    const num = (v) => (v === "" || v == null ? null : Number(String(v).replace(",", ".")));
+    const lista = (v) => v.split(",").map((x) => x.trim()).filter(Boolean);
+    const ricetta = {
+      id: r.id, nome: f("nome").value.trim(), stato: f("stato").value, categoria: f("categoria").value, tipo: f("tipo").value,
+      pasto: f("pasto").value, minuti_prep: num(f("minuti_prep").value), minuti_cottura: num(f("minuti_cottura").value),
+      max_volte_30gg: num(f("max_volte_30gg").value), cottura_lunga: f("cottura_lunga").checked,
+      preparabile_giorno_prima: f("preparabile_giorno_prima").checked, contorno_da_proporre: f("contorno_da_proporre").checked,
+      attrezzatura: lista(f("attrezzatura").value), riutilizzabile_in: lista(f("riutilizzabile_in").value),
+      variante_lorenzo: f("variante_lorenzo").value.trim(), note_famiglia: f("note_famiglia").value.trim(),
+      note: f("note").value.trim(), fonte: f("fonte").value.trim(),
+      preparazioni: [...s.querySelectorAll("#prep .riga")].map((riga) => {
+        const v = (k) => $(`[data-k="${k}"]`, riga).value.trim();
+        return Object.fromEntries(Object.entries({ nome: v("nome").toLowerCase(), metodo: v("metodo"), temp: num(v("temp")), minuti: num(v("minuti")), anticipabile: num(v("anticipabile")) })
+          .filter(([, x]) => x !== null && x !== ""));
+      }).filter((p) => p.nome),
+    };
+    if (!ricetta.nome) return toast("Il nome è obbligatorio", true);
+    const ingredienti = [...s.querySelectorAll("#ingr .riga")].map((riga) => ({
+      ingrediente: $('[data-k="ingrediente"]', riga).value.trim(),
+      quantita: num($('[data-k="quantita"]', riga).value.trim()),
+      unita: $('[data-k="unita"]', riga).value.trim(),
+    }));
+    const b = $("#salva", s);
+    b.disabled = true;
+    try {
+      await salva("salva_ricetta", { ricetta, ingredienti });
+      chiudi();
+      await ricarica();
+    } catch { b.disabled = false; }
+  };
+}
+
+// ---------- famiglia ----------
+function renderFamiglia() {
+  $("#stato").textContent = "";
+  const nomeDi = (id) => D.membri.find((m) => m.id === id)?.nome ?? "Tutta la famiglia";
+  $("#app").innerHTML = D.membri.map((m) => `
+    <div class="card" data-membro="${m.id}">
+      <div class="grid">
+        <div><label class="f">Nome</label><input data-k="nome" value="${esc(m.nome)}"></div>
+        <div><label class="f">Ruolo</label><select data-k="ruolo">${opzioni(RUOLI, m.ruolo)}</select></div>
+        <div><label class="f">Data di nascita</label><input type="date" data-k="data_nascita" value="${esc(m.data_nascita)}"></div>
+        <div class="wide row" style="gap:18px">
+          <label class="row small"><input type="checkbox" data-k="conta_ai_pasti" ${m.conta_ai_pasti ? "checked" : ""}> Conta ai pasti</label>
+          <label class="row small"><input type="checkbox" data-k="cucina_la_sera" ${m.cucina_la_sera ? "checked" : ""}> Cucina la sera (feriali)</label>
+          ${m.ruolo === "genitore" ? `<span class="small muted">${m.collegato ? "✓ collegato a Telegram" : "non collegato: /sono " + esc(m.nome)}</span>` : ""}
+        </div>
+      </div>
+    </div>`).join("") + `
+    <h2>Preferenze ed esclusioni</h2>
+    <div class="card lista-righe" id="pref">
+      <div class="riga r-pref intest"><span>Chi / tipo</span><span>Cosa</span><span class="note-p">Note</span><span></span></div>
+      ${D.preferenze.map(rigaPref).join("")}
+    </div>
+    <button class="btn" id="add-pref">+ Preferenza</button>
+    <h2>Routine settimanali</h2>
+    <div class="card lista-righe" id="rout">
+      <div class="riga r-rout intest"><span>Giorno</span><span>Chi / tipo</span><span class="desc">Descrizione</span><span>Inizio</span><span>Fine</span><span title="Attiva">✓</span><span></span></div>
+      ${D.routine.map(rigaRout).join("")}
+    </div>
+    <button class="btn" id="add-rout">+ Routine</button>
+    <p class="muted small">Le modifiche si salvano da sole quando esci dal campo.</p>`;
+
+  // Membri: salvataggio al cambio
+  for (const c of document.querySelectorAll("[data-membro]")) {
+    c.addEventListener("change", async () => {
+      const v = (k) => $(`[data-k="${k}"]`, c);
+      await salva("salva_membro", { membro: { id: Number(c.dataset.membro), nome: v("nome").value.trim(), ruolo: v("ruolo").value,
+        data_nascita: v("data_nascita").value || null, conta_ai_pasti: v("conta_ai_pasti").checked, cucina_la_sera: v("cucina_la_sera").checked } });
+    });
+  }
+  collegaRighe("#pref", "salva_preferenza", "elimina_preferenza", "preferenza", (riga) => ({
+    membro_id: Number($('[data-k="membro_id"]', riga).value) || null, tipo: $('[data-k="tipo"]', riga).value,
+    oggetto: $('[data-k="oggetto"]', riga).value.trim(), note: $('[data-k="note"]', riga).value.trim(),
+  }), (x) => x.oggetto);
+  collegaRighe("#rout", "salva_routine", "elimina_routine", "routine", (riga) => ({
+    giorno_settimana: Number($('[data-k="giorno_settimana"]', riga).value), membro_id: Number($('[data-k="membro_id"]', riga).value),
+    tipo: $('[data-k="tipo"]', riga).value, descrizione: $('[data-k="descrizione"]', riga).value.trim(),
+    orario: $('[data-k="orario"]', riga).value || null, uscita: $('[data-k="uscita"]', riga).value || null,
+    attiva: $('[data-k="attiva"]', riga).checked,
+  }), (x) => x.descrizione);
+  $("#add-pref").onclick = () => $("#pref").insertAdjacentHTML("beforeend", rigaPref({ tipo: "escluso" }));
+  $("#add-rout").onclick = () => $("#rout").insertAdjacentHTML("beforeend", rigaRout({ giorno_settimana: 1, tipo: "attivita", attiva: true, membro_id: D.membri.find((m) => m.ruolo === "figlio")?.id }));
+}
+
+const sceltaMembro = (sel, conTutti) =>
+  `<select data-k="membro_id">${conTutti ? `<option value="">Tutta la famiglia</option>` : ""}${D.membri.map((m) => `<option value="${m.id}" ${m.id === sel ? "selected" : ""}>${esc(m.nome)}</option>`).join("")}</select>`;
+
+function rigaPref(p) {
+  return `<div class="riga r-pref" data-id="${p.id ?? ""}">
+    <div>${sceltaMembro(p.membro_id, true)}<select data-k="tipo" style="margin-top:4px">${opzioni(TIPI_PREF, p.tipo, { non_gradito: "non gradito" })}</select></div>
+    <input data-k="oggetto" value="${esc(p.oggetto)}" placeholder="es. pesce">
+    <input class="note-p" data-k="note" value="${esc(p.note)}" placeholder="note">
+    <button class="btn icon ghost" data-elimina title="Elimina">✕</button></div>`;
+}
+function rigaRout(r) {
+  return `<div class="riga r-rout" data-id="${r.id ?? ""}">
+    <select data-k="giorno_settimana">${GIORNI.slice(1).map((g, i) => `<option value="${i + 1}" ${i + 1 === r.giorno_settimana ? "selected" : ""}>${g}</option>`).join("")}</select>
+    <div>${sceltaMembro(r.membro_id, false)}<select data-k="tipo" style="margin-top:4px">${opzioni(["attivita", "portare"], r.tipo, { attivita: "attività", portare: "da portare" })}</select></div>
+    <input class="desc" data-k="descrizione" value="${esc(r.descrizione)}" placeholder="es. Musica / Merenda">
+    <input type="time" data-k="orario" value="${esc(r.orario?.slice(0, 5))}" title="Inizio">
+    <input type="time" data-k="uscita" value="${esc(r.uscita?.slice(0, 5))}" title="Fine">
+    <input class="att" type="checkbox" data-k="attiva" ${r.attiva !== false ? "checked" : ""} title="Attiva">
+    <button class="btn icon ghost" data-elimina title="Elimina">✕</button></div>`;
+}
+
+/** Righe con salvataggio automatico al cambio e cancellazione. */
+function collegaRighe(sel, azSalva, azElimina, chiave, leggi, completa) {
+  const box = $(sel);
+  box.addEventListener("change", async (e) => {
+    const riga = e.target.closest(".riga[data-id]");
+    if (!riga) return;
+    const valori = leggi(riga);
+    if (!completa(valori)) return; // riga nuova non ancora compilata
+    const id = riga.dataset.id ? Number(riga.dataset.id) : undefined;
+    const r = await salva(azSalva, { [chiave]: { id, ...valori } });
+    riga.dataset.id = r.id;
+    D = await api("dati");
+  });
+  box.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-elimina]");
+    if (!b) return;
+    const riga = b.closest(".riga");
+    if (riga.dataset.id && !confirm("Eliminare questa riga?")) return;
+    if (riga.dataset.id) await salva(azElimina, { id: Number(riga.dataset.id) }, "Eliminato");
+    riga.remove();
+    D = await api("dati");
+  });
+}
+
+// ---------- freezer ----------
+function renderFreezer() {
+  $("#stato").textContent = `${D.freezer.length} voci`;
+  const settimane = (d) => Math.floor((new Date(D.oggi) - new Date(d)) / (7 * 86400000));
+  const data = (d) => new Date(d + "T12:00:00").toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "numeric" });
+  $("#app").innerHTML = `
+    <div class="card"><div class="row">
+      <input class="grow" id="fz-cosa" placeholder="Cosa (es. cotolette)">
+      <input id="fz-qta" placeholder="Quantità" style="flex:0 0 110px">
+      <button class="btn primary" id="fz-add">Aggiungi</button>
+    </div></div>
+    ${D.freezer.map((v) => `
+      <div class="card row" style="justify-content:space-between">
+        <div class="grow"><strong>❄️ ${esc(v.ingrediente)}</strong>${v.quantita ? ` <span class="muted">· ${esc(v.quantita)}</span>` : ""}
+          <div class="small muted">${settimane(v.aggiunto_il) >= 1 ? `in freezer da ${settimane(v.aggiunto_il)} sett.` : "aggiunto di recente"}${v.usato_il ? ` · nel menù di ${data(v.usato_il)}` : ""}</div></div>
+        <button class="btn icon ghost" data-fz="${v.id}">Tolto</button>
+      </div>`).join("") || '<div class="vuoto">Freezer vuoto.</div>'}
+    <p class="muted small">Il planner usa per prime le cose in freezer da più tempo e ti ricorda di scongelarle il giorno prima.</p>`;
+  $("#fz-add").onclick = async () => {
+    const ingrediente = $("#fz-cosa").value.trim();
+    if (!ingrediente) return $("#fz-cosa").focus();
+    await salva("aggiungi_freezer", { ingrediente, quantita: $("#fz-qta").value.trim() }, "Aggiunto ❄️");
+    await ricarica();
+  };
+  $("#fz-cosa").onkeydown = (e) => e.key === "Enter" && $("#fz-add").click();
+  for (const b of document.querySelectorAll("[data-fz]")) {
+    b.onclick = async () => { await salva("elimina_freezer", { id: Number(b.dataset.fz) }, "Tolto"); await ricarica(); };
+  }
+}
+
+// ---------- menù ----------
+function renderMenu() {
+  $("#stato").textContent = "";
+  if (!D.menu.length) { $("#app").innerHTML = '<div class="vuoto">Nessun menù pianificato.<br>Su Telegram: /pianifica</div>'; return; }
+  let giorno = "";
+  $("#app").innerHTML = D.menu.map((m) => {
+    const testa = m.data !== giorno ? `<div class="giorno">${new Date(m.data + "T12:00:00").toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</div>` : "";
+    giorno = m.data;
+    return `${testa}<div class="card ricetta" data-id="${m.ricette?.id}">
+      <div class="small muted">${m.pasto === "pranzo" ? "Pranzo" : "Cena"} · ${esc(m.ricette?.categoria?.replace("_", " "))}</div>
+      <div class="nome">${esc(m.ricette?.nome)}</div>
+      ${m.contorno ? `<div class="small">🥦 ${esc(m.contorno)}</div>` : ""}
+      ${m.note_prep ? `<div class="small muted">👉 ${esc(m.note_prep)}</div>` : ""}
+    </div>`;
+  }).join("");
+  for (const c of document.querySelectorAll(".ricetta")) c.onclick = () => apriRicetta(D.ricette.find((r) => r.id === Number(c.dataset.id)));
+}
+
+// ---------- impostazioni ----------
+function renderImpostazioni() {
+  $("#stato").textContent = "";
+  $("#app").innerHTML = `
+    <div class="card"><div class="grid">
+      <div><label class="f">Messaggio del mattino</label><input type="time" id="c-mattina" value="${esc(D.config.orario_mattina)}"></div>
+      <div><label class="f">Domanda del venerdì</label><input type="time" id="c-venerdi" value="${esc(D.config.orario_venerdi)}"></div>
+    </div>
+    <div class="barra" style="position:static"><button class="btn primary" id="c-salva">Salva orari</button></div></div>
+    <div class="card"><h3>Questo dispositivo</h3>
+      <p class="muted small">L'accesso resta attivo 30 giorni. Su un telefono condiviso conviene uscire.</p>
+      <button class="btn" id="esci">Esci</button></div>`;
+  $("#c-salva").onclick = () => salva("salva_config", { config: { orario_mattina: $("#c-mattina").value, orario_venerdi: $("#c-venerdi").value } });
+  $("#esci").onclick = async () => { await api("esci").catch(() => {}); mostraLogin("Sei uscito."); };
+}
+
+avvio();
+</script>
+</body>
+</html>
