@@ -292,7 +292,7 @@ function apriRicetta(r) {
       </div>
       <div class="wide"><label class="f">Variante Lorenzo (quando c'è pesce)</label><input data-f="variante_lorenzo" value="${esc(r.variante_lorenzo)}"></div>
       <div class="wide"><label class="f">Note famiglia (Leonardo, formaggi…)</label><textarea data-f="note_famiglia">${esc(r.note_famiglia)}</textarea></div>
-      <div class="wide"><label class="f">Da preparare doppio per il giorno dopo (separati da virgola)</label><input data-f="riutilizzabile_in" value="${esc((r.riutilizzabile_in || []).join(", "))}"></div>
+      <div class="wide"><label class="f">Preparazioni condivisibili con altri pasti (es. riso lessato, sugo di pomodoro): stesse parole = "prepara 2x"</label><input data-f="riutilizzabile_in" value="${esc((r.riutilizzabile_in || []).join(", "))}"></div>
     </div>
     <h2>Ingredienti <span class="muted small">(per tutta la famiglia)</span></h2>
     <div class="card lista-righe" id="ingr">${r.ricetta_ingredienti.map(rigaIngr).join("")}</div>
