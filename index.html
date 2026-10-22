@@ -178,7 +178,10 @@ async function avvio() {
       const { sessione: s } = await api("accedi", { otp: m[1] });
       window.__sessione = s;
       try { localStorage.setItem(CHIAVE, s); } catch {}
-    } catch (e) { return mostraLogin(e.message); }
+    } catch (e) {
+      // Link già usato o scaduto: se questo dispositivo ha già una sessione valida, si entra comunque
+      if (!sessione()) return mostraLogin(e.message);
+    }
   }
   if (!sessione()) return mostraLogin();
   try { await ricarica(); } catch (e) { if (sessione()) $("#app").innerHTML = `<div class="card vuoto">${esc(e.message)}</div>`; }
