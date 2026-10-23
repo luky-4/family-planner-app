@@ -216,7 +216,13 @@ function renderRicette() {
     </div>
     <div class="row" style="justify-content:space-between;margin-bottom:10px">
       <span class="muted small">${lista.length} ricette</span>
-      <button class="btn primary" id="nuova">+ Nuova ricetta</button>
+      <div class="row">
+        <button class="btn" id="scarica-xlsx" title="Scarica tutte le ricette in Excel">⬇︎ Excel</button>
+        <button class="btn" id="scarica-csv" title="Scarica tutte le ricette in CSV">⬇︎ CSV</button>
+        <button class="btn" id="carica" title="Carica un file Excel o CSV modificato">⬆︎ Carica</button>
+        <button class="btn primary" id="nuova">+ Nuova ricetta</button>
+      </div>
+      <input type="file" id="file-ricette" accept=".xlsx,.xls,.csv" hidden>
     </div>
     ${lista.map((r) => `
       <div class="card ricetta" data-id="${r.id}">
@@ -238,6 +244,14 @@ function renderRicette() {
   $("#f-cat").onchange = (e) => { filtro.categoria = e.target.value; renderRicette(); };
   $("#f-tipo").onchange = (e) => { filtro.tipo = e.target.value; renderRicette(); };
   $("#nuova").onclick = () => apriRicetta(null);
+  $("#scarica-xlsx").onclick = () => scaricaRicette("xlsx").catch((e) => toast(e.message, true));
+  $("#scarica-csv").onclick = () => scaricaRicette("csv").catch((e) => toast(e.message, true));
+  $("#carica").onclick = () => $("#file-ricette").click();
+  $("#file-ricette").onchange = (e) => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (f) caricaRicette(f).catch((err) => toast(err.message, true));
+  };
   for (const c of document.querySelectorAll(".ricetta")) {
     c.onclick = async (e) => {
       const id = Number(c.dataset.id);
@@ -349,6 +363,284 @@ function apriRicetta(r) {
       chiudi();
       await ricarica();
     } catch { b.disabled = false; }
+  };
+}
+
+// ---------- scarica / carica ricette (Excel o CSV) ----------
+// Stesso formato del template di scripts/ricette-excel.mjs: una riga per ricetta.
+const COLONNE_FILE = ["id", "nome", "stato", "categoria", "tipo", "pasto", "minuti_prep", "minuti_cottura", "cottura_lunga",
+  "giorno_prima", "max_volte_30gg", "contorno_da_proporre", "preparazioni", "attrezzatura", "ingredienti",
+  "variante_lorenzo", "note_famiglia", "riutilizzabile_in", "note", "fonte"];
+const ISTRUZIONI_FILE = [
+  ["Come usare questo file"], [""],
+  ["• Una riga = una ricetta. Modificala e ricaricala dalla dashboard (Ricette → ⬆︎ Carica)."],
+  ["• Prima di salvare, la dashboard mostra cosa cambia e chiede conferma."],
+  ["• Nuova ricetta: aggiungi una riga lasciando vuota la colonna id."],
+  ["• Non cancellare righe: per togliere una ricetta metti stato = scartata."], [""],
+  ["stato", STATI.join(", ")], ["categoria", CATEGORIE.join(", ")], ["tipo", TIPI.join(", ")], ["pasto", PASTI.join(", ")],
+  ["cottura_lunga / giorno_prima / contorno_da_proporre", "sì oppure no"],
+  ["ingredienti", "per tutta la famiglia, separati da ; → nome quantità unità (es. tagliatelle 300 g; cipolla 0,5 pz; sale)"],
+  ["preparazioni", "separate da ; → nome: metodo temperatura° minuti' +giorni (es. lasagne: forno 200° 40' +1g)"],
+  ["", "metodi: " + METODI.join(", ") + " · senza temperatura = va bene con qualunque forno"],
+  ["riutilizzabile_in", "preparazioni condivisibili, separate da virgola (stesse parole = \"prepara 2x\")"],
+];
+
+let XLSXlib = null;
+async function sheetjs() {
+  if (XLSXlib) return XLSXlib;
+  await new Promise((ok, ko) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    s.onload = ok; s.onerror = () => ko(new Error("Non riesco a caricare il lettore Excel, riprova"));
+    document.head.appendChild(s);
+  });
+  return (XLSXlib = window.XLSX);
+}
+
+const numIt = (q) => (q === null || q === undefined || q === "" ? "" : String(q).replace(".", ","));
+const testoIngr = (r) => (r.ricetta_ingredienti || []).map((i) => [i.ingrediente, numIt(i.quantita), i.unita || ""].filter(Boolean).join(" ")).join("; ");
+const testoPrep = (lista) => (lista || []).map((p) =>
+  [`${p.nome}: ${p.metodo}`, p.temp ? `${p.temp}°` : "", p.minuti ? `${p.minuti}'` : "", p.anticipabile ? `+${p.anticipabile}g` : ""].filter(Boolean).join(" ")).join("; ");
+const sn = (v) => (v ? "sì" : "no");
+
+function rigaFile(r) {
+  return {
+    id: r.id, nome: r.nome, stato: r.stato, categoria: r.categoria, tipo: r.tipo, pasto: r.pasto,
+    minuti_prep: r.minuti_prep ?? "", minuti_cottura: r.minuti_cottura ?? "", cottura_lunga: sn(r.cottura_lunga),
+    giorno_prima: sn(r.preparabile_giorno_prima), max_volte_30gg: r.max_volte_30gg ?? "", contorno_da_proporre: sn(r.contorno_da_proporre),
+    preparazioni: testoPrep(r.preparazioni), attrezzatura: (r.attrezzatura || []).join(", "), ingredienti: testoIngr(r),
+    variante_lorenzo: r.variante_lorenzo || "", note_famiglia: r.note_famiglia || "",
+    riutilizzabile_in: (r.riutilizzabile_in || []).join(", "), note: r.note || "", fonte: r.fonte || "",
+  };
+}
+
+async function scaricaRicette(formato) {
+  const X = await sheetjs();
+  const ws = X.utils.json_to_sheet(D.ricette.map(rigaFile), { header: COLONNE_FILE });
+  ws["!cols"] = COLONNE_FILE.map((c) => ({ wch: { nome: 45, ingredienti: 70, preparazioni: 55, note_famiglia: 40, variante_lorenzo: 35 }[c] || 12 }));
+  const data = new Date().toISOString().slice(0, 10);
+  if (formato === "csv") {
+    const csv = "\uFEFF" + X.utils.sheet_to_csv(ws, { FS: ";" }); // BOM: Excel lo apre con gli accenti giusti
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = `ricette-${data}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } else {
+    const wb = X.utils.book_new();
+    X.utils.book_append_sheet(wb, ws, "Ricette");
+    const wi = X.utils.aoa_to_sheet(ISTRUZIONI_FILE);
+    wi["!cols"] = [{ wch: 28 }, { wch: 100 }];
+    X.utils.book_append_sheet(wb, wi, "Istruzioni");
+    X.writeFile(wb, `ricette-${data}.xlsx`);
+  }
+  toast(`${D.ricette.length} ricette scaricate`);
+}
+
+const siNoVal = (v) => /^(s|sì|si|x|true|1|vero)$/i.test(String(v ?? "").trim());
+const listaVal = (v) => String(v ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+const numVal = (v) => (String(v ?? "").trim() === "" ? null : Number(String(v).replace(",", ".")));
+
+function leggiIngredienti(testo) {
+  const t = String(testo ?? "");
+  return t.split(t.includes(";") ? ";" : /,(?!\d)/).map((x) => x.trim()).filter(Boolean).map((parte) => {
+    const m = parte.match(/^(.+)\s+(\d+(?:[.,]\d+)?)\s*([a-zA-Zàèéìòù]+)?$/);
+    return m ? { ingrediente: m[1].trim().toLowerCase(), quantita: Number(m[2].replace(",", ".")), unita: m[3] || null }
+      : { ingrediente: parte.toLowerCase(), quantita: null, unita: null };
+  });
+}
+function leggiPreparazioni(testo, avvisi = []) {
+  return String(testo ?? "").split(";").map((x) => x.trim()).filter(Boolean).flatMap((parte) => {
+    try { return [leggiPreparazione(parte)]; } catch (e) { avvisi.push(e.message + " → ignorata"); return []; }
+  });
+}
+function leggiPreparazione(parte) {
+  const i = parte.indexOf(":");
+  const nome = (i >= 0 ? parte.slice(0, i) : "").trim().toLowerCase(), resto = i >= 0 ? parte.slice(i + 1) : "";
+  const metodo = METODI.find((m) => new RegExp(`\\b${m}\\b`, "i").test(resto));
+  if (!nome || !metodo) throw new Error(`preparazione non valida: "${parte}"`);
+  const t = resto.match(/(\d+)\s*°/), mi = resto.match(/(\d+)\s*['’]/), an = resto.match(/\+\s*(\d+)\s*g/i);
+  return { nome, metodo, ...(t ? { temp: +t[1] } : {}), ...(mi ? { minuti: +mi[1] } : {}), ...(an ? { anticipabile: +an[1] } : {}) };
+}
+// Sistemazione automatica dei valori scritti a mano nel file
+const normTesto = (v) => String(v ?? "").trim().toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/[\s-]+/g, "_");
+function distanza(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+const SINONIMI = {
+  stato: { approvato: "approvata", ok: "approvata", si: "approvata", attiva: "approvata", scartato: "scartata", eliminata: "scartata", eliminato: "scartata", no: "scartata", cancellata: "scartata", bozze: "bozza", da_approvare: "bozza", nuova: "bozza" },
+  tipo: { primo: "base", primi: "base", pasta: "base", secondo: "proteina", secondi: "proteina", piatto_unico: "piatto_unico", unico: "piatto_unico", contorni: "contorno", verdura: "contorno", minestra: "zuppa", vellutata: "zuppa", dolce: "dessert", frutta: "dessert" },
+  categoria: { pollo: "carne_bianca", tacchino: "carne_bianca", coniglio: "carne_bianca", bianca: "carne_bianca", manzo: "carne_rossa", vitello: "carne_rossa", maiale: "carne_rossa", carne: "carne_rossa", rossa: "carne_rossa", salmone: "pesce", tonno: "pesce", merluzzo: "pesce", uovo: "uova", formaggi: "formaggio", latticini: "formaggio", legume: "legumi", ceci: "legumi", lenticchie: "legumi", fagioli: "legumi", verdure: "vegetale", verdura: "vegetale", vegetariano: "vegetale", vegano: "vegetale" },
+  pasto: { tutti: "entrambi", tutti_e_due: "entrambi", pranzo_e_cena: "entrambi", sempre: "entrambi", sera: "cena" },
+};
+/** Riporta un valore scritto a mano a uno di quelli ammessi; null se impossibile */
+function correggi(valore, ammessi, campo) {
+  const n = normTesto(valore);
+  if (ammessi.includes(n)) return n;
+  if (SINONIMI[campo]?.[n]) return SINONIMI[campo][n];
+  const vicino = ammessi.map((a) => [a, distanza(n, a)]).sort((x, y) => x[1] - y[1])[0];
+  if (vicino && vicino[1] <= Math.max(1, Math.floor(vicino[0].length / 4))) return vicino[0];
+  const prefisso = ammessi.filter((a) => n.length >= 3 && a.startsWith(n));
+  return prefisso.length === 1 ? prefisso[0] : null;
+}
+/** "30", "30 min", "1 ora", "1h30", "1,5 ore" → minuti */
+function minutiVal(v) {
+  const t = String(v ?? "").trim().toLowerCase().replace(",", ".");
+  if (!t) return null;
+  const h = t.match(/^(\d+(?:\.\d+)?)\s*(h|ora|ore)\s*(\d+)?/);
+  if (h) return Math.round(Number(h[1]) * 60 + Number(h[3] || 0));
+  const m = t.match(/\d+(?:\.\d+)?/);
+  return m ? Math.round(Number(m[0])) : NaN;
+}
+const firmaIngr = (lista) => lista.map((i) => `${i.ingrediente}|${i.quantita ?? ""}|${i.unita ?? ""}`).sort().join(";");
+
+async function caricaRicette(file) {
+  const X = await sheetjs();
+  let wb;
+  if (/\.csv$/i.test(file.name)) {
+    const testo = (await file.text()).replace(/^\uFEFF/, "");
+    wb = X.read(testo, { type: "string", FS: testo.split("\n")[0].includes(";") ? ";" : "," });
+  } else {
+    wb = X.read(await file.arrayBuffer(), { type: "array" });
+  }
+  const ws = wb.Sheets["Ricette"] || wb.Sheets[wb.SheetNames[0]];
+  const righe = X.utils.sheet_to_json(ws, { defval: "", raw: false });
+  if (!righe.length) throw new Error("Il file non contiene ricette");
+  const mancanti = ["nome", "stato", "categoria", "tipo", "ingredienti"].filter((c) => !(c in righe[0]));
+  if (mancanti.length) throw new Error(`Colonne mancanti: ${mancanti.join(", ")}`);
+
+  const attuali = new Map(D.ricette.map((r) => [r.id, r]));
+  const perNome = new Map(D.ricette.map((r) => [normTesto(r.nome), r]));
+  const nuove = [], modificate = [], errori = [], sistemati = [];
+  const visti = new Set(); // id e nomi già incontrati nel file
+
+  righe.forEach((v, i) => {
+    const n = i + 2;
+    const nome = String(v.nome ?? "").replace(/\s+/g, " ").trim();
+    if (!nome) return;
+    const etichetta = `riga ${n} (${nome.slice(0, 40)})`;
+    const fix = (m) => sistemati.push(`${etichetta}: ${m}`);
+    const err = (m) => errori.push(`${etichetta}: ${m}`);
+
+    // --- id: sbagliato, inventato o mancante → lo ricavo dal nome quando possibile
+    let id = String(v.id ?? "").trim() ? Number(String(v.id).replace(/\D/g, "")) : null;
+    const omonima = perNome.get(normTesto(nome));
+    let notaId = null;
+    if (id !== null && !attuali.has(id)) {
+      if (omonima) { notaId = `id ${v.id} non esiste: è la ricetta #${omonima.id} con lo stesso nome`; id = omonima.id; }
+      else { notaId = `id ${v.id} non esiste: la carico come ricetta nuova`; id = null; }
+    } else if (id === null && omonima) {
+      notaId = `esiste già una ricetta con questo nome (#${omonima.id}): la aggiorno invece di duplicarla`; id = omonima.id;
+    }
+    const chiave = id ?? normTesto(nome);
+    if (visti.has(chiave)) { fix(`stessa ricetta già presente più sopra nel file${id ? ` (#${id})` : ""} → ignorata`); return; }
+    visti.add(chiave);
+    if (notaId) fix(notaId);
+
+    // --- valori a scelta: correggo maiuscole, accenti, refusi e sinonimi
+    const scelta = (campo, ammessi, predefinito) => {
+      const grezzo = String(v[campo] ?? "").trim();
+      if (!grezzo) { if (predefinito) { if (campo !== "pasto" || v[campo] !== undefined) fix(`${campo} vuoto → ${predefinito}`); return predefinito; } return null; }
+      const c = correggi(grezzo, ammessi, campo);
+      if (c && c !== grezzo) fix(`${campo} "${grezzo}" → ${c}`);
+      return c;
+    };
+    const tipo = scelta("tipo", TIPI, "piatto_unico");
+    let categoria = scelta("categoria", CATEGORIE, null);
+    if (!categoria && !String(v.categoria ?? "").trim() && tipo === "contorno") { categoria = "vegetale"; fix("categoria vuota → vegetale (contorno)"); }
+    const stato = scelta("stato", STATI, "bozza");
+    const pasto = scelta("pasto", PASTI, "entrambi");
+    if (!tipo) err(`tipo "${v.tipo}" non riconosciuto (ammessi: ${TIPI.join(", ")})`);
+    if (!categoria) err(`categoria "${v.categoria}" non riconosciuta (ammesse: ${CATEGORIE.join(", ")})`);
+    if (!stato) err(`stato "${v.stato}" non riconosciuto (ammessi: ${STATI.join(", ")})`);
+    if (!pasto) err(`pasto "${v.pasto}" non riconosciuto (ammessi: ${PASTI.join(", ")})`);
+
+    // --- numeri: "30 min", "1 ora", "1h30"…
+    const numero = (campo, conv = minutiVal) => {
+      const grezzo = String(v[campo] ?? "").trim();
+      const x = conv(grezzo);
+      if (Number.isNaN(x)) { err(`${campo} "${grezzo}" non è un numero`); return null; }
+      if (x !== null && String(x) !== grezzo) fix(`${campo} "${grezzo}" → ${x}`);
+      return x;
+    };
+    const avvisiPrep = [];
+    const ricetta = {
+      ...(id ? { id } : {}),
+      nome, stato, categoria, tipo, pasto,
+      minuti_prep: numero("minuti_prep"), minuti_cottura: numero("minuti_cottura"),
+      max_volte_30gg: numero("max_volte_30gg", (g) => (g === "" ? null : /^\d+/.test(g) ? parseInt(g, 10) : NaN)),
+      cottura_lunga: siNoVal(v.cottura_lunga), preparabile_giorno_prima: siNoVal(v.giorno_prima), contorno_da_proporre: siNoVal(v.contorno_da_proporre),
+      attrezzatura: listaVal(v.attrezzatura), riutilizzabile_in: listaVal(v.riutilizzabile_in).map((x) => x.toLowerCase()),
+      variante_lorenzo: String(v.variante_lorenzo || "").trim() || null, note_famiglia: String(v.note_famiglia || "").trim() || null,
+      note: String(v.note || "").trim() || null, fonte: String(v.fonte || "").trim() || "Lorenzo",
+      preparazioni: leggiPreparazioni(v.preparazioni, avvisiPrep),
+    };
+    avvisiPrep.forEach(fix);
+    const ingredienti = leggiIngredienti(v.ingredienti);
+    if (!String(v.ingredienti ?? "").includes(";") && ingredienti.length > 1) fix("ingredienti separati da virgole → divisi lo stesso");
+    if (errori.some((e) => e.startsWith(etichetta))) return;
+
+    if (!id) return nuove.push({ ricetta, ingredienti });
+    const vecchia = attuali.get(id), vr = rigaFile(vecchia), cambi = [];
+    const conf = (k, a, b) => { if (String(a ?? "") !== String(b ?? "")) cambi.push(k); };
+    for (const k of ["nome", "stato", "categoria", "tipo", "pasto", "note", "fonte"]) conf(k, ricetta[k], vecchia[k]);
+    for (const k of ["minuti_prep", "minuti_cottura", "max_volte_30gg"]) conf(k, ricetta[k], vecchia[k]);
+    conf("variante_lorenzo", ricetta.variante_lorenzo, vecchia.variante_lorenzo);
+    conf("note_famiglia", ricetta.note_famiglia, vecchia.note_famiglia);
+    conf("cottura_lunga", ricetta.cottura_lunga, vecchia.cottura_lunga);
+    conf("giorno_prima", ricetta.preparabile_giorno_prima, vecchia.preparabile_giorno_prima);
+    conf("contorno_da_proporre", ricetta.contorno_da_proporre, vecchia.contorno_da_proporre);
+    conf("attrezzatura", ricetta.attrezzatura.join(", "), vr.attrezzatura);
+    conf("riutilizzabile_in", ricetta.riutilizzabile_in.join(", "), vr.riutilizzabile_in);
+    conf("preparazioni", testoPrep(ricetta.preparazioni), vr.preparazioni);
+    conf("ingredienti", firmaIngr(ingredienti), firmaIngr(vecchia.ricetta_ingredienti || []));
+    if (cambi.length) modificate.push({ ricetta, ingredienti, cambi });
+  });
+  anteprimaImport(file.name, nuove, modificate, errori, sistemati);
+}
+
+function anteprimaImport(nomeFile, nuove, modificate, errori, sistemati = []) {
+  const s = document.createElement("div");
+  s.className = "sheet";
+  const totale = nuove.length + modificate.length;
+  s.innerHTML = `<div class="pannello">
+    <h3>Carica ${esc(nomeFile)}</h3>
+    ${errori.length ? `<div class="card" style="border-color:var(--bad)"><strong style="color:var(--bad)">❌ ${errori.length} righe con errori (non verranno caricate)</strong>
+      <div class="small" style="margin-top:6px">${errori.map(esc).join("<br>")}</div></div>` : ""}
+    ${sistemati.length ? `<details class="card"><summary><strong>🔧 ${sistemati.length} cose sistemate automaticamente</strong> <span class="muted small">(tocca per vederle)</span></summary>
+      <div class="small" style="margin-top:6px">${sistemati.map(esc).join("<br>")}</div></details>` : ""}
+    ${totale ? `<div class="card">
+      ${nuove.length ? `<strong>➕ ${nuove.length} nuove</strong><div class="small" style="margin:4px 0 10px">${nuove.map((x) => esc(x.ricetta.nome)).join("<br>")}</div>` : ""}
+      ${modificate.length ? `<strong>✏️ ${modificate.length} modificate</strong><div class="small" style="margin-top:4px">${modificate.map((x) => `#${x.ricetta.id} ${esc(x.ricetta.nome)} <span class="muted">→ ${x.cambi.join(", ")}</span>`).join("<br>")}</div>` : ""}
+    </div>` : `<div class="vuoto">Nessuna differenza rispetto alle ricette attuali ✨</div>`}
+    <div class="barra"><button class="btn ghost" id="annulla">${totale ? "Annulla" : "Chiudi"}</button>
+      ${totale ? `<button class="btn primary" id="conferma">Carica ${totale} ricette</button>` : ""}</div>
+  </div>`;
+  document.body.appendChild(s);
+  document.body.style.overflow = "hidden";
+  const chiudi = () => { s.remove(); document.body.style.overflow = ""; };
+  $("#annulla", s).onclick = chiudi;
+  s.onclick = (e) => { if (e.target === s) chiudi(); };
+  if (!totale) return;
+  $("#conferma", s).onclick = async (e) => {
+    e.target.disabled = true;
+    e.target.textContent = "Carico…";
+    try {
+      const { esiti } = await api("importa_ricette", { ricette: [...nuove, ...modificate].map(({ ricetta, ingredienti }) => ({ ricetta, ingredienti })) });
+      const falliti = esiti.filter((x) => x.errore);
+      chiudi();
+      await ricarica();
+      if (falliti.length) toast(`Caricate ${esiti.length - falliti.length}, errori: ${falliti.map((x) => `${x.nome}: ${x.errore}`).join("; ")}`, true);
+      else toast(`✅ ${esiti.length} ricette caricate`);
+    } catch (err) {
+      toast(err.message, true);
+      e.target.disabled = false;
+      e.target.textContent = `Carica ${totale} ricette`;
+    }
   };
 }
 
