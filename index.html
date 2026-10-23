@@ -421,20 +421,49 @@ async function scaricaRicette(formato) {
   const data = new Date().toISOString().slice(0, 10);
   if (formato === "csv") {
     const csv = "\uFEFF" + X.utils.sheet_to_csv(ws, { FS: ";" }); // BOM: Excel lo apre con gli accenti giusti
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    a.download = `ricette-${data}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    await consegnaFile(new Blob([csv], { type: "text/csv;charset=utf-8" }), `ricette-${data}.csv`);
   } else {
     const wb = X.utils.book_new();
     X.utils.book_append_sheet(wb, ws, "Ricette");
     const wi = X.utils.aoa_to_sheet(ISTRUZIONI_FILE);
     wi["!cols"] = [{ wch: 28 }, { wch: 100 }];
     X.utils.book_append_sheet(wb, wi, "Istruzioni");
-    X.writeFile(wb, `ricette-${data}.xlsx`);
+    const tipo = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    await consegnaFile(new Blob([X.write(wb, { type: "array", bookType: "xlsx" })], { type: tipo }), `ricette-${data}.xlsx`);
   }
-  toast(`${D.ricette.length} ricette scaricate`);
+}
+
+/**
+ * Dà il file all'utente. Sul telefono (e nel browser interno di Telegram) i download "classici" spesso
+ * non partono: lì uso il menu Condividi (Salva su File, WhatsApp, Mail…); altrimenti download o anteprima.
+ */
+async function consegnaFile(blob, nome) {
+  const file = new File([blob], nome, { type: blob.type });
+  const telefono = /iphone|ipad|android|mobile/i.test(navigator.userAgent);
+  if (telefono && navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: nome });
+      return toast("File pronto ✓");
+    } catch (e) {
+      if (e?.name === "AbortError") return; // l'utente ha chiuso il menu
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  if (telefono) {
+    // Anteprima in una nuova scheda: da lì "Condividi → Salva su File"
+    const w = window.open(url, "_blank");
+    if (!w) location.href = url;
+    toast("Si apre il file: usa Condividi → Salva su File");
+  } else {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nome;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast(`Scaricato: ${nome} (cartella Download)`);
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 const siNoVal = (v) => /^(s|sì|si|x|true|1|vero)$/i.test(String(v ?? "").trim());
