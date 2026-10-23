@@ -473,6 +473,8 @@ const numVal = (v) => (String(v ?? "").trim() === "" ? null : Number(String(v).r
 function leggiIngredienti(testo) {
   const t = String(testo ?? "");
   return t.split(t.includes(";") ? ";" : /,(?!\d)/).map((x) => x.trim()).filter(Boolean).map((parte) => {
+    const d = parte.match(/^(\d+(?:[.,]\d+)?)\s*(g|gr|kg|ml|cl|l|pz|cucchiai|cucchiaio|cucchiaini|cucchiaino|bustina|bustine|costa|coste|spicchio|spicchi|scatoletta|scatolette|vasetto|vasetti|mazzo|pizzico)?\s+(.+)$/i);
+    if (d) return { ingrediente: d[3].trim().toLowerCase(), quantita: Number(d[1].replace(",", ".")), unita: (d[2] || "pz").toLowerCase() };
     const m = parte.match(/^(.+)\s+(\d+(?:[.,]\d+)?)\s*([a-zA-Zàèéìòù]+)?$/);
     return m ? { ingrediente: m[1].trim().toLowerCase(), quantita: Number(m[2].replace(",", ".")), unita: m[3] || null }
       : { ingrediente: parte.toLowerCase(), quantita: null, unita: null };
