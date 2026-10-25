@@ -232,6 +232,7 @@ function renderRicette() {
         ${r.preparabile_giorno_prima ? '<span class="chip">📦 giorno prima</span>' : ""}
         ${r.contorno_da_proporre ? '<span class="chip">🥦 contorno proposto</span>' : ""}
         ${r.max_volte_30gg != null ? `<span class="chip">🔁 max ${r.max_volte_30gg}/30gg</span>` : ""}
+        ${r.chi_cucina?.length ? `<span class="chip">👩‍🍳 solo ${esc(r.chi_cucina.join(", "))}</span>` : ""}
         ${(r.preparazioni || []).some((p) => p.metodo === "forno") ? '<span class="chip">🔥 forno</span>' : ""}
         <div class="azioni">
           ${r.stato !== "approvata" ? `<button class="btn icon" data-stato="approvata">✓ Approva</button>` : ""}
@@ -283,6 +284,9 @@ function rigaPrep(p = {}) {
 }
 const siNo = (k, v, testo) => `<label class="row small"><input type="checkbox" data-f="${k}" ${v ? "checked" : ""}> ${testo}</label>`;
 
+/** Chi può cucinare: genitori e tata */
+const cuochiPossibili = () => D.membri.filter((m) => m.ruolo !== "figlio").map((m) => m.nome);
+
 function apriRicetta(r) {
   r = r || { stato: "bozza", categoria: "legumi", tipo: "piatto_unico", pasto: "entrambi", preparazioni: [], ricetta_ingredienti: [], attrezzatura: [], riutilizzabile_in: [], fonte: "Lorenzo" };
   const s = document.createElement("div");
@@ -304,6 +308,9 @@ function apriRicetta(r) {
         ${siNo("preparabile_giorno_prima", r.preparabile_giorno_prima, "Si prepara il giorno prima")}
         ${siNo("contorno_da_proporre", r.contorno_da_proporre, "Piatto unico: aggiungi un contorno")}
       </div>
+      <div class="wide"><label class="f">Chi la cucina (nessuna spunta = tutti)</label>
+        <div class="row" style="gap:18px" id="chi-cucina">${cuochiPossibili().map((n) =>
+          `<label class="row small"><input type="checkbox" value="${esc(n)}" ${(r.chi_cucina || []).includes(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</div></div>
       <div class="wide"><label class="f">Variante Lorenzo (quando c'è pesce)</label><input data-f="variante_lorenzo" value="${esc(r.variante_lorenzo)}"></div>
       <div class="wide"><label class="f">Note famiglia (Leonardo, formaggi…)</label><textarea data-f="note_famiglia">${esc(r.note_famiglia)}</textarea></div>
       <div class="wide"><label class="f">Preparazioni condivisibili con altri pasti (es. riso lessato, sugo di pomodoro): stesse parole = "prepara 2x"</label><input data-f="riutilizzabile_in" value="${esc((r.riutilizzabile_in || []).join(", "))}"></div>
@@ -343,6 +350,7 @@ function apriRicetta(r) {
       preparabile_giorno_prima: f("preparabile_giorno_prima").checked, contorno_da_proporre: f("contorno_da_proporre").checked,
       attrezzatura: lista(f("attrezzatura").value), riutilizzabile_in: lista(f("riutilizzabile_in").value),
       variante_lorenzo: f("variante_lorenzo").value.trim(), note_famiglia: f("note_famiglia").value.trim(),
+      chi_cucina: [...s.querySelectorAll("#chi-cucina input:checked")].map((x) => x.value),
       note: f("note").value.trim(), fonte: f("fonte").value.trim(),
       preparazioni: [...s.querySelectorAll("#prep .riga")].map((riga) => {
         const v = (k) => $(`[data-k="${k}"]`, riga).value.trim();
@@ -369,7 +377,7 @@ function apriRicetta(r) {
 // ---------- scarica / carica ricette (Excel o CSV) ----------
 // Stesso formato del template di scripts/ricette-excel.mjs: una riga per ricetta.
 const COLONNE_FILE = ["id", "nome", "stato", "categoria", "tipo", "pasto", "minuti_prep", "minuti_cottura", "cottura_lunga",
-  "giorno_prima", "max_volte_30gg", "contorno_da_proporre", "preparazioni", "attrezzatura", "ingredienti",
+  "giorno_prima", "max_volte_30gg", "contorno_da_proporre", "chi_cucina", "preparazioni", "attrezzatura", "ingredienti",
   "variante_lorenzo", "note_famiglia", "riutilizzabile_in", "note", "fonte"];
 const ISTRUZIONI_FILE = [
   ["Come usare questo file"], [""],
@@ -379,6 +387,7 @@ const ISTRUZIONI_FILE = [
   ["• Non cancellare righe: per togliere una ricetta metti stato = scartata."], [""],
   ["stato", STATI.join(", ")], ["categoria", CATEGORIE.join(", ")], ["tipo", TIPI.join(", ")], ["pasto", PASTI.join(", ")],
   ["cottura_lunga / giorno_prima / contorno_da_proporre", "sì oppure no"],
+  ["chi_cucina", "chi può cucinarla, separati da virgola (es. Claudia). Vuoto = tutti"],
   ["ingredienti", "per tutta la famiglia, separati da ; → nome quantità unità (es. tagliatelle 300 g; cipolla 0,5 pz; sale)"],
   ["preparazioni", "separate da ; → nome: metodo temperatura° minuti' +giorni (es. lasagne: forno 200° 40' +1g)"],
   ["", "metodi: " + METODI.join(", ") + " · senza temperatura = va bene con qualunque forno"],
@@ -408,6 +417,7 @@ function rigaFile(r) {
     id: r.id, nome: r.nome, stato: r.stato, categoria: r.categoria, tipo: r.tipo, pasto: r.pasto,
     minuti_prep: r.minuti_prep ?? "", minuti_cottura: r.minuti_cottura ?? "", cottura_lunga: sn(r.cottura_lunga),
     giorno_prima: sn(r.preparabile_giorno_prima), max_volte_30gg: r.max_volte_30gg ?? "", contorno_da_proporre: sn(r.contorno_da_proporre),
+    chi_cucina: (r.chi_cucina || []).join(", "),
     preparazioni: testoPrep(r.preparazioni), attrezzatura: (r.attrezzatura || []).join(", "), ingredienti: testoIngr(r),
     variante_lorenzo: r.variante_lorenzo || "", note_famiglia: r.note_famiglia || "",
     riutilizzabile_in: (r.riutilizzabile_in || []).join(", "), note: r.note || "", fonte: r.fonte || "",
@@ -598,6 +608,15 @@ async function caricaRicette(file) {
       if (x !== null && String(x) !== grezzo) fix(`${campo} "${grezzo}" → ${x}`);
       return x;
     };
+    // chi_cucina: nomi riconosciuti anche con maiuscole/refusi; "tutti" o vuoto = tutti
+    const possibili = cuochiPossibili();
+    const chi_cucina = listaVal(v.chi_cucina).filter((x) => !/^tutt/i.test(x)).flatMap((x) => {
+      const c = correggi(x, possibili.map(normTesto), "chi");
+      const nomeOk = c && possibili.find((n) => normTesto(n) === c);
+      if (!nomeOk) { err(`chi_cucina "${x}" non è nessuno di: ${possibili.join(", ")}`); return []; }
+      if (nomeOk !== x) fix(`chi_cucina "${x}" → ${nomeOk}`);
+      return [nomeOk];
+    });
     const avvisiPrep = [];
     const ricetta = {
       ...(id ? { id } : {}),
@@ -609,6 +628,7 @@ async function caricaRicette(file) {
       variante_lorenzo: String(v.variante_lorenzo || "").trim() || null, note_famiglia: String(v.note_famiglia || "").trim() || null,
       note: String(v.note || "").trim() || null, fonte: String(v.fonte || "").trim() || "Lorenzo",
       preparazioni: leggiPreparazioni(v.preparazioni, avvisiPrep),
+      chi_cucina,
     };
     avvisiPrep.forEach(fix);
     const ingredienti = leggiIngredienti(v.ingredienti);
@@ -628,6 +648,7 @@ async function caricaRicette(file) {
     conf("attrezzatura", ricetta.attrezzatura.join(", "), vr.attrezzatura);
     conf("riutilizzabile_in", ricetta.riutilizzabile_in.join(", "), vr.riutilizzabile_in);
     conf("preparazioni", testoPrep(ricetta.preparazioni), vr.preparazioni);
+    conf("chi_cucina", ricetta.chi_cucina.join(", "), vr.chi_cucina);
     conf("ingredienti", firmaIngr(ingredienti), firmaIngr(vecchia.ricetta_ingredienti || []));
     if (cambi.length) modificate.push({ ricetta, ingredienti, cambi });
   });
